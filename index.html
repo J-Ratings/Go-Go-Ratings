@@ -5,13 +5,134 @@
   <title>Go Go Ratings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    /* Global variables & base styles */
+    :root {
+      --maxw: 1100px;
+      --accent: #1f6feb;
+      --bg: #0d1117;
+      --card: #161b22;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --border: #30363d;
+    }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .site-title a { color: var(--text); text-decoration: none; }
+    .site-title a:visited { color: var(--text); }
+    header { border-bottom: 1px solid var(--border); background: var(--card); }
+    .wrap { max-width: var(--maxw); margin: auto; padding: 16px; }
+    .title { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; justify-content: space-between; }
+    .title h1 { margin: 0; font-size: 1.6rem; }
+
+    /* Navigation */
+    .topnav { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    .topnav a {
+      display: inline-block;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0f1623;
+      color: var(--text);
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .topnav a:hover { border-color: var(--accent); }
+    .topnav a.active-tab { background-color: rgba(255, 255, 255, 0.1); border-color: var(--accent); }
+
+    /* Panels */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-top: 18px;
+    }
+    .panel h2 {
+      margin: 0;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    input[type="search"] {
+      flex: 1;
+      min-width: 220px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0f1623;
+      color: var(--text);
+      font-size: 1rem;
+    }
+    .muted { color: var(--muted); }
+    .club-btn {
+      background: #0f1623;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .club-btn:hover { background: rgba(255, 255, 255, 0.05); }
+
+    /* Table */
+    .table-wrap { overflow: auto; }
+    #players { table-layout: auto; width: auto; margin: 0 auto; font-size: 1.1rem; border-collapse: collapse; }
+    #players th, #players td { text-align: center; padding: 0.5rem 1rem; border-bottom: 1px solid var(--border); }
+    #players th { font-weight: 600; position: sticky; top: 0; background: var(--card); }
+    tr:hover td { background: #0f1520; }
+    .right { text-align: right; }
+    @media (max-width: 600px) {
+      #players { font-size: 1rem; }
+      #players th:first-child, #players td:first-child { min-width: 140px; }
+    }
+
+    /* Modal */
+    #compare-modal {
+      display:none;
+      position:fixed;
+      top:0; left:0;
+      width:100%; height:100%;
+      background:rgba(0,0,0,0.6);
+      justify-content:center;
+      align-items:center;
+      z-index:9999;
+    }
+    #compare-modal > div {
+      background:#1a1a1a;
+      padding:20px;
+      border-radius:8px;
+      max-width:500px;
+      width:90%;
+      max-height:80%;
+      overflow:auto;
+      color:#fff;
+    }
+  </style>
 </head>
 <body>
 <header>
   <div class="wrap">
     <h1 class="site-title"><a href="index.html">Go Go Ratings</a></h1>
     <nav class="topnav" aria-label="Main">
-      <a href="index.html">Home</a>
+      <a href="index.html" class="active-tab">Home</a>
       <a href="compare.html">Compare</a>
       <a href="peak.html">Peak</a>
     </nav>
@@ -24,6 +145,10 @@
     <div class="toolbar">
       <input id="q" type="search" placeholder="Filter by name…">
       <span id="count" class="muted"></span>
+      <button id="compare-btn" class="club-btn" type="button" style="margin-left:auto">Compare</button>
+    </div>
+    <div id="compare-wrap" style="display:none; padding:16px">
+      <div id="compare-chart" style="height:800px"></div>
     </div>
     <div class="table-wrap">
       <table id="players">
@@ -38,11 +163,22 @@
       </table>
     </div>
   </section>
+
+  <!-- Compare Selection Modal -->
+  <div id="compare-modal">
+    <div>
+      <h3>Select players to view:</h3>
+      <div id="compare-list" style="margin-bottom:20px;"></div>
+      <button id="compare-show" style="margin-right:10px">Show Selected</button>
+      <button id="compare-cancel">Cancel</button>
+    </div>
+  </div>
 </main>
 
 <script>
   const DATA_URL = 'data/players.json';
   const state = { rows: [], filtered: [] };
+  const histCache = new Map();
 
   function render() {
     const tbody = document.querySelector('#players tbody');
@@ -50,12 +186,10 @@
     state.filtered.forEach((r, i) => {
       const tr = document.createElement('tr');
 
-      // rank
       const tdRank = document.createElement('td');
       tdRank.textContent = i + 1;
       tr.appendChild(tdRank);
 
-      // player name
       const tdName = document.createElement('td');
       const a = document.createElement('a');
       a.href = `player.html?id=${encodeURIComponent(r.id)}`;
@@ -63,7 +197,6 @@
       tdName.appendChild(a);
       tr.appendChild(tdName);
 
-      // rating
       const tdRt = document.createElement('td');
       tdRt.className = 'right';
       tdRt.textContent = r.rating;
@@ -77,12 +210,100 @@
 
   function applyFilter() {
     const q = document.getElementById('q').value.trim().toLowerCase();
-    if (!q) {
-      state.filtered = state.rows.slice();
-    } else {
-      state.filtered = state.rows.filter(r => r.name.toLowerCase().includes(q));
-    }
+    state.filtered = !q
+      ? state.rows.slice()
+      : state.rows.filter(r => r.name.toLowerCase().includes(q));
     render();
+    hideCompare();
+  }
+
+  async function fetchHistoryFor(id) {
+    if (histCache.has(id)) return histCache.get(id);
+    try {
+      const res = await fetch(`data/history/${encodeURIComponent(id)}.json`, { cache: 'no-cache' });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      histCache.set(id, rows);
+      return rows;
+    } catch { return null; }
+  }
+
+  function hideCompare() {
+    document.getElementById('compare-wrap').style.display = 'none';
+    document.getElementById('compare-chart').innerHTML = '';
+  }
+
+  async function buildComparison(players) {
+    const wrap = document.getElementById('compare-wrap');
+    const chart = document.getElementById('compare-chart');
+    wrap.style.display = 'block';
+    chart.innerHTML = 'Loading…';
+
+    const traces = [];
+    for (const p of players) {
+      const hist = await fetchHistoryFor(p.id);
+      if (!hist || !hist.length) continue;
+      traces.push({
+        name: p.name,
+        x: hist.map(d => d.date),
+        y: hist.map(d => d.rating),
+        mode: 'lines'
+      });
+    }
+
+    if (!traces.length) {
+      chart.innerHTML = 'No history found.';
+      return;
+    }
+
+    const cs = getComputedStyle(document.body);
+    const layout = {
+      margin: { l: 50, r: 20, t: 10, b: 40 },
+      xaxis: { type: 'date' },
+      yaxis: { title: 'Rating' },
+      legend: { orientation: 'h' },
+      paper_bgcolor: cs.backgroundColor,
+      plot_bgcolor: cs.backgroundColor,
+      font: { color: cs.color }
+    };
+
+    Plotly.newPlot(chart, traces, layout, { displayModeBar: false, responsive: true });
+  }
+
+  function setupCompareButton() {
+    const modal = document.getElementById('compare-modal');
+    const listDiv = document.getElementById('compare-list');
+    const showBtn = document.getElementById('compare-show');
+    const cancelBtn = document.getElementById('compare-cancel');
+
+    document.getElementById('compare-btn').addEventListener('click', () => {
+      listDiv.innerHTML = '';
+      state.filtered.forEach(p => {
+        const id = `chk-${p.id}`;
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+          <label>
+            <input type="checkbox" id="${id}" value="${p.id}" style="margin-right:6px">
+            ${p.name} (${p.rating})
+          </label>
+        `;
+        listDiv.appendChild(wrapper);
+      });
+      modal.style.display = 'flex';
+    });
+
+    cancelBtn.addEventListener('click', () => modal.style.display = 'none');
+
+    showBtn.addEventListener('click', () => {
+      const selectedIds = Array.from(listDiv.querySelectorAll('input:checked')).map(cb => cb.value);
+      if (!selectedIds.length) {
+        alert('Please select at least one player.');
+        return;
+      }
+      modal.style.display = 'none';
+      const chosen = state.filtered.filter(p => selectedIds.includes(p.id));
+      buildComparison(chosen);
+    });
   }
 
   async function load() {
@@ -90,12 +311,10 @@
       const res = await fetch(DATA_URL, { cache: 'no-cache' });
       if (!res.ok) throw new Error('Failed to load players.json');
       const data = await res.json();
-
       state.rows = data
         .filter(d => d && d.name && Number.isFinite(+d.rating))
         .map(d => ({ id: d.id, name: d.name, rating: +d.rating }))
-        .sort((a,b) => b.rating - a.rating);  // highest rating first
-
+        .sort((a,b) => b.rating - a.rating);
       state.filtered = state.rows.slice();
       render();
     } catch (err) {
@@ -105,6 +324,7 @@
   }
 
   document.getElementById('q').addEventListener('input', applyFilter);
+  setupCompareButton();
   load();
 </script>
 </body>
