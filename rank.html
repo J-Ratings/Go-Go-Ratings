@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Peak Ratings — Go Go Ratings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1 class="site-title"><a href="index.html">Go Go Ratings</a></h1>
+    <nav class="topnav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="compare.html">Compare</a>
+      <a href="peak.html">Peak</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel" id="players-panel">
+    <h2>Peak ratings</h2>
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Filter by name…">
+      <span id="count" class="muted"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="players">
+        <thead>
+          <tr>
+            <th style="min-width:60px">Rank</th>
+            <th style="min-width:240px">Player</th>
+            <th class="right" style="min-width:120px">Peak</th>
+          </tr>
+        </thead>
+        <tbody><!-- filled by JS --></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+  const DATA_URL = 'data/players.json';
+  const state = { rows: [], filtered: [] };
+
+  function render() {
+    const tbody = document.querySelector('#players tbody');
+    tbody.innerHTML = '';
+    state.filtered.forEach((r, i) => {
+      const tr = document.createElement('tr');
+
+      // rank
+      const tdRank = document.createElement('td');
+      tdRank.textContent = i + 1;
+      tr.appendChild(tdRank);
+
+      // player name
+      const tdName = document.createElement('td');
+      const a = document.createElement('a');
+      a.href = `player.html?id=${encodeURIComponent(r.id)}`;
+      a.textContent = r.name;
+      tdName.appendChild(a);
+      tr.appendChild(tdName);
+
+      // peak rating
+      const tdPeak = document.createElement('td');
+      tdPeak.className = 'right';
+      tdPeak.textContent = r.peak;
+      tr.appendChild(tdPeak);
+
+      tbody.appendChild(tr);
+    });
+    document.getElementById('count').textContent =
+      `${state.filtered.length.toLocaleString()} players`;
+  }
+
+  function applyFilter() {
+    const q = document.getElementById('q').value.trim().toLowerCase();
+    if (!q) {
+      state.filtered = state.rows.slice();
+    } else {
+      state.filtered = state.rows.filter(r => r.name.toLowerCase().includes(q));
+    }
+    render();
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(DATA_URL, { cache: 'no-cache' });
+      if (!res.ok) throw new Error('Failed to load players.json');
+      const data = await res.json();
+
+      state.rows = data
+        .filter(d => d && d.name && Number.isFinite(+d.peak))
+        .map(d => ({ id: d.id, name: d.name, peak: +d.peak }))
+        .sort((a,b) => b.peak - a.peak);  // highest peak first
+
+      state.filtered = state.rows.slice();
+      render();
+    } catch (err) {
+      document.querySelector('#players tbody').innerHTML =
+        `<tr><td colspan="3">Error loading data: ${err.message}</td></tr>`;
+    }
+  }
+
+  document.getElementById('q').addEventListener('input', applyFilter);
+  load();
+</script>
+</body>
+</html>
