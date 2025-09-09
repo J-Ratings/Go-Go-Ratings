@@ -9,6 +9,20 @@
   <style>
     #chart { height: 420px; }
     .toolbar { margin-bottom: 10px; }
+    #gamesWrap { max-height: 520px; overflow: auto; margin-top: 12px; }
+    table.games { width:100%; border-collapse:collapse; font-size:14px; }
+    table.games th, table.games td {
+      padding:6px 8px;
+      border-bottom:1px solid #ddd;
+      text-align:left;
+    }
+    table.games th {
+      position: sticky;
+      top: 0;
+      background: inherit;
+    }
+    .result.win  { color: #2e7d32; font-weight: 600; }
+    .result.loss { color: #c62828; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -23,7 +37,6 @@
   </div>
 </header>
 
-
 <main class="wrap">
   <section class="panel">
     <h2 id="pname">Player</h2>
@@ -36,6 +49,11 @@
       </select>
     </div>
     <div id="chart">Loading…</div>
+
+    <h3 style="margin-top:18px;">Games</h3>
+    <div id="gamesWrap">
+      <table id="games" class="games"></table>
+    </div>
   </section>
 </main>
 
@@ -49,6 +67,7 @@
 
   const PLAYERS_URL = 'data/players.json';
   const HIST_URL    = id => `data/history/${encodeURIComponent(id)}.json`;
+  const GAMES_URL   = id => `data/games/${encodeURIComponent(id)}.json`;
   const IS_TOUCH    = window.matchMedia('(pointer: coarse)').matches;
 
   let RAW = []; // daily series
@@ -118,21 +137,20 @@
       });
     }
 
-const trace = {
-  type: 'scatter',
-  x: xs,
-  y: ys,
-  mode: (mode === 'daily') ? 'lines' : 'lines+markers',
-  line: {
-    width: 2,
-    shape: 'linear',   // always straight connections
-    color: '#1f77b4'
-  },
-  marker: (mode === 'daily') ? { size: 0 } : { size: 4 },
-  hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>',
-  connectgaps: true
-};
-
+    const trace = {
+      type: 'scatter',
+      x: xs,
+      y: ys,
+      mode: (mode === 'daily') ? 'lines' : 'lines+markers',
+      line: {
+        width: 2,
+        shape: 'linear',
+        color: '#1f77b4'
+      },
+      marker: (mode === 'daily') ? { size: 0 } : { size: 4 },
+      hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>',
+      connectgaps: true
+    };
 
     const bg = getComputedStyle(document.body).backgroundColor;
     Plotly.newPlot('chart', [trace], {
@@ -150,11 +168,75 @@ const trace = {
     });
   }
 
+  function renderGamesTable(myName, games) {
+    const tbl = document.getElementById('games');
+    tbl.innerHTML = '';
+
+    // Header
+    const thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    for (const h of ['Black','Elo','White','Elo','Result']) {
+      const th = document.createElement('th');
+      th.textContent = h;
+      hr.appendChild(th);
+    }
+    thead.appendChild(hr);
+    tbl.appendChild(thead);
+
+    // Body
+    const tbody = document.createElement('tbody');
+    games.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    for (const g of games) {
+      const tr = document.createElement('tr');
+
+      const tdB = document.createElement('td');
+      if (g.black === myName) {
+        const s = document.createElement('strong');
+        s.textContent = g.black;
+        tdB.appendChild(s);
+      } else {
+        tdB.textContent = g.black;
+      }
+
+      const tdBE = document.createElement('td');
+      tdBE.textContent = Number(g.blackElo).toString();
+
+      const tdW = document.createElement('td');
+      if (g.white === myName) {
+        const s = document.createElement('strong');
+        s.textContent = g.white;
+        tdW.appendChild(s);
+      } else {
+        tdW.textContent = g.white;
+      }
+
+      const tdWE = document.createElement('td');
+      tdWE.textContent = Number(g.whiteElo).toString();
+
+      const tdR = document.createElement('td');
+      tdR.textContent = g.result;
+      const iWon = (g.result === '1-0' && g.black === myName) ||
+                   (g.result === '0-1' && g.white === myName);
+      tdR.className = 'result ' + (iWon ? 'win' : 'loss');
+
+      tr.appendChild(tdB);
+      tr.appendChild(tdBE);
+      tr.appendChild(tdW);
+      tr.appendChild(tdWE);
+      tr.appendChild(tdR);
+      tbody.appendChild(tr);
+    }
+
+    tbl.appendChild(tbody);
+  }
+
   async function load(){
     try {
-      const [playersRes, histRes] = await Promise.all([
+      const [playersRes, histRes, gamesRes] = await Promise.all([
         fetch(PLAYERS_URL, { cache: 'no-cache' }),
-        fetch(HIST_URL(idRaw), { cache: 'no-cache' })
+        fetch(HIST_URL(idRaw), { cache: 'no-cache' }),
+        fetch(GAMES_URL(idRaw), { cache: 'no-cache' })
       ]);
       if (!playersRes.ok) throw new Error('players.json not found');
       if (!histRes.ok) throw new Error('history not found');
@@ -165,26 +247,31 @@ const trace = {
       document.getElementById('pname').textContent = me.name;
 
       RAW = normalise(
-        (await histRes.json()).map(d => ({ x: d.date, y: Number(d.rating) })),
-        true
+        (await histRes.json()).map(d => ({ x: d.date, y: Number(d.rating) })), true
       );
 
       if (!RAW.length) {
         document.getElementById('chart').textContent = 'No games';
-        return;
+      } else {
+        const initialMode = 'monthly';
+        document.getElementById('agg').value = initialMode;
+        draw(initialMode);
+        document.getElementById('agg').addEventListener('change', e => draw(e.target.value));
       }
 
-      const initialMode = 'monthly';
-      document.getElementById('agg').value = initialMode;
-      draw(initialMode);
-
-      document.getElementById('agg').addEventListener('change', e => {
-        draw(e.target.value);
-      });
+      if (gamesRes.ok) {
+        const games = await gamesRes.json();
+        renderGamesTable(me.name, games);
+      } else {
+        const tbl = document.getElementById('games');
+        tbl.innerHTML = '<tbody><tr><td>No games</td></tr></tbody>';
+      }
 
     } catch (e) {
       console.error(e);
       document.getElementById('chart').textContent = 'Error: ' + e.message;
+      const tbl = document.getElementById('games');
+      tbl.innerHTML = '<tbody><tr><td>Error loading games</td></tr></tbody>';
     }
   }
 
