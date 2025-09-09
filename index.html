@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Go Go Ratings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1 class="site-title"><a href="index.html">Go-Go-Ratings</a></h1>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel" id="players-panel">
+    <h2>All players</h2>
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Filter by name…">
+      <span id="count" class="muted"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="players">
+        <thead>
+          <tr>
+            <th style="min-width:240px">Player</th>
+            <th class="right" style="min-width:120px">Rating</th>
+          </tr>
+        </thead>
+        <tbody><!-- filled by JS --></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+  const DATA_URL = 'data/players.json';
+  const state = { rows: [], filtered: [] };
+
+  function render() {
+    const tbody = document.querySelector('#players tbody');
+    tbody.innerHTML = '';
+    for (const r of state.filtered) {
+      const tr = document.createElement('tr');
+
+      const tdName = document.createElement('td');
+      const a = document.createElement('a');
+      a.href = `player.html?id=${encodeURIComponent(r.id)}`;
+      a.textContent = r.name;
+      tdName.appendChild(a);
+
+      const tdRt = document.createElement('td');
+      tdRt.className = 'right';
+      tdRt.textContent = r.rating;
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdRt);
+      tbody.appendChild(tr);
+    }
+    document.getElementById('count').textContent =
+      `${state.filtered.length.toLocaleString()} players`;
+  }
+
+  function applyFilter() {
+    const q = document.getElementById('q').value.trim().toLowerCase();
+    if (!q) {
+      state.filtered = state.rows.slice();
+    } else {
+      state.filtered = state.rows.filter(r => r.name.toLowerCase().includes(q));
+    }
+    render();
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(DATA_URL, { cache: 'no-cache' });
+      if (!res.ok) throw new Error('Failed to load players.json');
+      const data = await res.json();
+
+      state.rows = data
+        .filter(d => d && d.name && Number.isFinite(+d.rating))
+        .map(d => ({ id: d.id, name: d.name, rating: +d.rating }))
+        .sort((a,b) => b.rating - a.rating);  // highest rating first
+
+      state.filtered = state.rows.slice();
+      render();
+    } catch (err) {
+      document.querySelector('#players tbody').innerHTML =
+        `<tr><td colspan="2">Error loading data: ${err.message}</td></tr>`;
+    }
+  }
+
+  document.getElementById('q').addEventListener('input', applyFilter);
+  load();
+</script>
+</body>
+</html>

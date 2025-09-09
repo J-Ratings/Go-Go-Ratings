@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Go Go Ratings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    #chart { height: 420px; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1 class="site-title"><a href="index.html">Go-Ratings</a></h1>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel">
+    <h2 id="pname">Player</h2>
+    <div id="chart">Loading…</div>
+  </section>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const idRaw = params.get('id');
+  if (!idRaw) {
+    document.getElementById('chart').textContent = 'Missing player id.';
+    throw new Error('no id');
+  }
+
+  const PLAYERS_URL = 'data/players.json';
+  const HIST_URL = id => `data/history/${encodeURIComponent(id)}.json`;
+  const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+
+  async function load() {
+    try {
+      const [playersRes, histRes] = await Promise.all([
+        fetch(PLAYERS_URL, { cache: 'no-cache' }),
+        fetch(HIST_URL(idRaw), { cache: 'no-cache' })
+      ]);
+      if (!playersRes.ok) throw new Error('players.json not found');
+      if (!histRes.ok) throw new Error('history not found');
+
+      const players = await playersRes.json();
+      const me = players.find(p => p.id === idRaw);
+      if (!me) throw new Error('player id not in players.json');
+      document.getElementById('pname').textContent = me.name;
+
+      const series = (await histRes.json())
+        .map(d => ({ x: d.date, y: Number(d.rating) }))
+        .filter(p => Number.isFinite(p.y));
+      if (!series.length) {
+        document.getElementById('chart').textContent = 'No games';
+        return;
+      }
+
+      const trace = {
+        x: series.map(p => p.x),
+        y: series.map(p => p.y),
+        mode: 'lines',
+        line: { width: 2, shape: 'hv', color: '#1f77b4' },
+        name: 'Go-Rating',
+        hovertemplate: '%{x}<br>%{y}<extra></extra>'
+      };
+
+      const ymin = Math.floor(Math.min(...trace.y) / 100) * 100;
+      const ymax = Math.ceil(Math.max(...trace.y) / 100) * 100;
+      const shapes = [];
+      for (let v = ymin; v <= ymax; v += 100) {
+        shapes.push({
+          type: 'line',
+          xref: 'paper', x0: 0, x1: 1,
+          y0: v, y1: v,
+          line: { width: 1, color: 'rgba(128,128,128,0.35)' },
+          layer: 'below'
+        });
+      }
+
+      const bg = getComputedStyle(document.body).backgroundColor;
+      Plotly.newPlot('chart', [trace], {
+        margin:{ l:50, r:20, t:10, b:40 },
+        xaxis:{ type:'date' },
+        yaxis:{ title:'Rating' },
+        paper_bgcolor:bg,
+        plot_bgcolor:bg,
+        font:{ color:getComputedStyle(document.body).color },
+        shapes
+      }, {
+        staticPlot: IS_TOUCH,
+        displayModeBar:false,
+        responsive:true
+      });
+
+    } catch (e) {
+      console.error(e);
+      document.getElementById('chart').textContent = 'Error: ' + e.message;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
