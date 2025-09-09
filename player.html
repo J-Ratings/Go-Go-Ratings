@@ -112,20 +112,21 @@
       });
     }
 
-    const trace = {
-      type: 'scatter',
-      x: xs,
-      y: ys,
-      mode: (mode === 'daily') ? 'lines' : 'lines+markers',
-      line: {
-        width: 2,
-        shape: (mode === 'daily') ? 'hv' : 'linear',
-        color: '#1f77b4'
-      },
-      marker: (mode === 'daily') ? { size: 0 } : { size: 4 },
-      hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>',
-      connectgaps: true
-    };
+const trace = {
+  type: 'scatter',
+  x: xs,
+  y: ys,
+  mode: (mode === 'daily') ? 'lines' : 'lines+markers',
+  line: {
+    width: 2,
+    shape: 'linear',   // always straight connections
+    color: '#1f77b4'
+  },
+  marker: (mode === 'daily') ? { size: 0 } : { size: 4 },
+  hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>',
+  connectgaps: true
+};
+
 
     const bg = getComputedStyle(document.body).backgroundColor;
     Plotly.newPlot('chart', [trace], {
