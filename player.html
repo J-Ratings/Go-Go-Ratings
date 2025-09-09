@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Go Go Ratings</title>
+  <title>GoGo Ratings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     #chart { height: 420px; }
-    .toolbar { margin-bottom: 1em; }
+    .toolbar { margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -25,7 +25,7 @@
       <label for="agg">View:</label>
       <select id="agg">
         <option value="daily">Daily</option>
-        <option value="monthly" selected>Monthly</option>
+        <option value="monthly">Monthly</option>
         <option value="yearly">Yearly</option>
       </select>
     </div>
@@ -44,7 +44,6 @@
   const PLAYERS_URL = 'data/players.json';
   const HIST_URL = id => `data/history/${encodeURIComponent(id)}.json`;
   const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
-  let rawSeries = [];
 
   function aggregate(series, mode) {
     if (mode === 'daily') return series;
@@ -54,36 +53,37 @@
       const d = new Date(p.x);
       let key;
       if (mode === 'monthly') {
-        key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       } else if (mode === 'yearly') {
-        key = `${d.getFullYear()}`;
+        key = String(d.getFullYear());
       }
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(p.y);
     }
 
-    const aggSeries = Object.entries(grouped).map(([k, vals]) => {
-      const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
-      let date;
+    const out = [];
+    for (const key of Object.keys(grouped).sort()) {
+      const avg = grouped[key].reduce((a,b) => a+b, 0) / grouped[key].length;
       if (mode === 'monthly') {
-        const [y,m] = k.split('-');
-        date = `${y}-${m}-15`; // mid-month
+        out.push({ x: key + '-01', y: avg });
       } else {
-        date = `${k}-07-01`; // mid-year
+        out.push({ x: key + '-01-01', y: avg });
       }
-      return { x: date, y: avg };
-    });
-
-    return aggSeries.sort((a,b)=> new Date(a.x) - new Date(b.x));
+    }
+    return out;
   }
 
-  function render(series) {
+  function render(series, mode) {
     const trace = {
       x: series.map(p => p.x),
       y: series.map(p => p.y),
-      mode: 'lines+markers',
-      line: { width: 2, shape: 'hv', color: '#1f77b4' },
-      marker: { size: 4 },
+      mode: mode === 'daily' ? 'lines' : 'lines+markers',
+      line: { 
+        width: 2, 
+        shape: mode === 'daily' ? 'hv' : 'linear',
+        color: '#1f77b4' 
+      },
+      marker: mode === 'daily' ? undefined : { size: 4 },
       hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>'
     };
 
@@ -130,29 +130,29 @@
       if (!me) throw new Error('player id not in players.json');
       document.getElementById('pname').textContent = me.name;
 
-      rawSeries = (await histRes.json())
+      const rawSeries = (await histRes.json())
         .map(d => ({ x: d.date, y: Number(d.rating) }))
         .filter(p => Number.isFinite(p.y));
-
       if (!rawSeries.length) {
         document.getElementById('chart').textContent = 'No games';
         return;
       }
 
-      // Default to monthly
+      // default mode = monthly
       const initialMode = 'monthly';
-      render(aggregate(rawSeries, initialMode));
       document.getElementById('agg').value = initialMode;
+      render(aggregate(rawSeries, initialMode), initialMode);
+
+      document.getElementById('agg').addEventListener('change', e => {
+        const mode = e.target.value;
+        render(aggregate(rawSeries, mode), mode);
+      });
 
     } catch (e) {
       console.error(e);
       document.getElementById('chart').textContent = 'Error: ' + e.message;
     }
   }
-
-  document.getElementById('agg').addEventListener('change', e => {
-    render(aggregate(rawSeries, e.target.value));
-  });
 
   load();
 </script>
