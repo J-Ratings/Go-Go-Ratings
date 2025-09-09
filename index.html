@@ -18,7 +18,6 @@
   </div>
 </header>
 
-
 <main class="wrap">
   <section class="panel" id="players-panel">
     <h2>All players</h2>
@@ -30,6 +29,7 @@
       <table id="players">
         <thead>
           <tr>
+            <th style="min-width:60px">Rank</th>
             <th style="min-width:240px">Player</th>
             <th class="right" style="min-width:120px">Rating</th>
           </tr>
@@ -47,23 +47,30 @@
   function render() {
     const tbody = document.querySelector('#players tbody');
     tbody.innerHTML = '';
-    for (const r of state.filtered) {
+    state.filtered.forEach((r, i) => {
       const tr = document.createElement('tr');
 
+      // rank
+      const tdRank = document.createElement('td');
+      tdRank.textContent = i + 1;
+      tr.appendChild(tdRank);
+
+      // player name
       const tdName = document.createElement('td');
       const a = document.createElement('a');
       a.href = `player.html?id=${encodeURIComponent(r.id)}`;
       a.textContent = r.name;
       tdName.appendChild(a);
+      tr.appendChild(tdName);
 
+      // rating
       const tdRt = document.createElement('td');
       tdRt.className = 'right';
       tdRt.textContent = r.rating;
-
-      tr.appendChild(tdName);
       tr.appendChild(tdRt);
+
       tbody.appendChild(tr);
-    }
+    });
     document.getElementById('count').textContent =
       `${state.filtered.length.toLocaleString()} players`;
   }
@@ -93,7 +100,7 @@
       render();
     } catch (err) {
       document.querySelector('#players tbody').innerHTML =
-        `<tr><td colspan="2">Error loading data: ${err.message}</td></tr>`;
+        `<tr><td colspan="3">Error loading data: ${err.message}</td></tr>`;
     }
   }
 
