@@ -1,24 +1,54 @@
-/* Top navigation (Home / Compare / Peak) */
-.topnav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
+:root {
+  --bg: #0f1623;       /* dark background */
+  --text: #f0f0f0;     /* light text */
+  --accent: #7b9eff;   /* highlight colour */
+  --border: #333;      /* border colour */
 }
-.topnav a {
-  display: inline-block;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #0f1623;
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background-color: var(--bg);
   color: var(--text);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h1, h2, h3 {
+  color: var(--text);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+}
+
+th, td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  text-align: left;
   font-weight: 600;
-  font-size: 1rem;
 }
-.topnav a:hover {
-  border-color: var(--accent);
+
+.right {
+  text-align: right;
 }
-.topnav a.active-tab {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: var(--accent);
+
+input[type="search"] {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background-color: #1a2233;
+  color: var(--text);
 }
