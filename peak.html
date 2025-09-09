@@ -32,6 +32,7 @@
             <th style="min-width:60px">Rank</th>
             <th style="min-width:240px">Player</th>
             <th class="right" style="min-width:120px">Peak</th>
+            <th style="min-width:140px">Peak Date</th>
           </tr>
         </thead>
         <tbody><!-- filled by JS --></tbody>
@@ -69,6 +70,11 @@
       tdPeak.textContent = r.peak;
       tr.appendChild(tdPeak);
 
+      // peak date
+      const tdDate = document.createElement('td');
+      tdDate.textContent = r.peak_date || '';
+      tr.appendChild(tdDate);
+
       tbody.appendChild(tr);
     });
     document.getElementById('count').textContent =
@@ -93,14 +99,19 @@
 
       state.rows = data
         .filter(d => d && d.name && Number.isFinite(+d.peak))
-        .map(d => ({ id: d.id, name: d.name, peak: +d.peak }))
+        .map(d => ({
+          id: d.id,
+          name: d.name,
+          peak: +d.peak,
+          peak_date: d.peak_date
+        }))
         .sort((a,b) => b.peak - a.peak);  // highest peak first
 
       state.filtered = state.rows.slice();
       render();
     } catch (err) {
       document.querySelector('#players tbody').innerHTML =
-        `<tr><td colspan="3">Error loading data: ${err.message}</td></tr>`;
+        `<tr><td colspan="4">Error loading data: ${err.message}</td></tr>`;
     }
   }
 
