@@ -30,6 +30,41 @@
     .result { font-weight: 700; }   /* bold result */
     .result.win  { color: #2e7d32; }
     .result.loss { color: #c62828; }
+      #gamesWrap { max-height: 520px; overflow: auto; margin-top: 12px; }
+
+  table.games {
+    width:100%;
+    border-collapse: separate;   /* needed so the double borders render cleanly */
+    border-spacing: 0;
+    font-size:14px;
+  }
+  table.games th, table.games td {
+    padding:6px 8px;
+    border-bottom:1px solid #2b2f36;
+    text-align:center;           /* centre all cells and headers */
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  /* Sticky header that stays above rows */
+  table.games th {
+    position: sticky;
+    top: 0;
+    z-index: 2;                  /* ensures rows don't show through */
+    background-color: var(--panel-bg, #1a1a1a); /* opaque header background */
+  }
+
+  /* Double separators: Date|Black, Elo|White, Elo|Result */
+  table.games th:nth-child(1), table.games td:nth-child(1),
+  table.games th:nth-child(3), table.games td:nth-child(3),
+  table.games th:nth-child(5), table.games td:nth-child(5) {
+    border-right: 3px double rgba(128,128,128,0.6);
+  }
+
+  .result { font-weight:700; }
+  .result.win  { color:#2e7d32; }
+  .result.loss { color:#c62828; }
+
   </style>
 </head>
 <body>
