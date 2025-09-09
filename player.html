@@ -45,13 +45,33 @@
   const HIST_URL    = id => `data/history/${encodeURIComponent(id)}.json`;
   const IS_TOUCH    = window.matchMedia('(pointer: coarse)').matches;
 
-  let RAW = []; // raw daily series (date, rating)
+  let RAW = []; // daily series
 
-  // ---- Aggregation ---------------------------------------------------------
+  // Sort by date, keep finite y only, and (optionally) dedupe same-day points.
+  function normalise(series, dedupeByDay = false){
+    const s = series
+      .filter(p => p && p.x && Number.isFinite(p.y))
+      .map(p => ({ x: p.x, y: +p.y }))
+      .sort((a,b) => new Date(a.x) - new Date(b.x));
+
+    if (!dedupeByDay) return s;
+
+    const out = [];
+    let lastKey = null;
+    for (const p of s) {
+      const d = new Date(p.x);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (key !== lastKey) out.push(p);
+      else out[out.length-1] = p; // keep the last point for that day
+      lastKey = key;
+    }
+    return out;
+  }
+
   function aggregate(series, mode){
-    if (mode === 'daily') return series.slice(); // exact daily points
+    if (mode === 'daily') return normalise(series, true);
 
-    const buckets = {};
+    const buckets = Object.create(null);
     for (const p of series) {
       const d = new Date(p.x);
       const key = (mode === 'monthly')
@@ -60,41 +80,27 @@
       (buckets[key] ||= []).push(p.y);
     }
 
-    // average per bucket; use first day of month/year as x
-    return Object.keys(buckets).sort().map(k => {
-      const ys = buckets[k];
+    const out = Object.keys(buckets).sort().map(k => {
+      const ys = buckets[k].filter(Number.isFinite);
       const avg = ys.reduce((a,b)=>a+b,0) / ys.length;
       const x = (k.length === 7) ? `${k}-01` : `${k}-01-01`;
       return { x, y: avg };
     });
+    return normalise(out, false);
   }
 
-  // Draw with correct line style per mode
   function draw(mode){
-    // remove placeholder text if present
     const el = document.getElementById('chart');
     if (el.textContent && el.textContent.includes('Loading')) el.textContent = '';
 
     const data = aggregate(RAW, mode);
     const xs = data.map(p => p.x);
-    const ys = data.map(p => p.y);
+    const ys = data.map(p => p.y).filter(Number.isFinite);
+    if (!xs.length || !ys.length) {
+      el.textContent = 'No games';
+      return;
+    }
 
-    const trace = {
-      type: 'scatter',
-      x: xs,
-      y: ys,
-      mode: (mode === 'daily') ? 'lines' : 'lines+markers',
-      line: {
-        width: 2,
-        shape: (mode === 'daily') ? 'hv' : 'linear', // step only for daily
-        color: '#1f77b4'
-      },
-      marker: (mode === 'daily') ? undefined : { size: 4 },
-      hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>',
-      connectgaps: true
-    };
-
-    // major horizontal grid lines every 100
     const ymin = Math.floor(Math.min(...ys) / 100) * 100;
     const ymax = Math.ceil(Math.max(...ys) / 100) * 100;
     const shapes = [];
@@ -108,8 +114,22 @@
       });
     }
 
+    const trace = {
+      type: 'scatter',
+      x: xs,
+      y: ys,
+      mode: mode === 'daily' ? 'lines' : 'lines+markers',
+      line: {
+        width: 2,
+        shape: mode === 'daily' ? 'hv' : 'linear',
+        color: '#1f77b4'
+      },
+      marker: mode === 'daily' ? undefined : { size: 4 },
+      hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>',
+      connectgaps: true
+    };
+
     const bg = getComputedStyle(document.body).backgroundColor;
-    // Use newPlot to force a clean redraw when switching mode
     Plotly.newPlot('chart', [trace], {
       margin:{ l:50, r:20, t:10, b:40 },
       xaxis:{ type:'date' },
@@ -125,7 +145,6 @@
     });
   }
 
-  // ---- Load & initialise ---------------------------------------------------
   async function load(){
     try {
       const [playersRes, histRes] = await Promise.all([
@@ -140,9 +159,11 @@
       if (!me) throw new Error('player id not in players.json');
       document.getElementById('pname').textContent = me.name;
 
-      RAW = (await histRes.json())
-        .map(d => ({ x: d.date, y: Number(d.rating) }))
-        .filter(p => Number.isFinite(p.y));
+      RAW = normalise(
+        (await histRes.json()).map(d => ({ x: d.date, y: Number(d.rating) })),
+        true // dedupe multiple points on the same day, keep last
+      );
+
       if (!RAW.length) {
         document.getElementById('chart').textContent = 'No games';
         return;
