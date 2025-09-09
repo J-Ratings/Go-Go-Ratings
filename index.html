@@ -5,105 +5,10 @@
   <title>Go Go Ratings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <style>
-    /* Global variables & base styles */
-    :root {
-      --maxw: 1100px;
-      --accent: #1f6feb;
-      --bg: #0d1117;
-      --card: #161b22;
-      --text: #c9d1d9;
-      --muted: #8b949e;
-      --border: #30363d;
-    }
-    html, body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
-    }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .site-title a { color: var(--text); text-decoration: none; }
-    .site-title a:visited { color: var(--text); }
-    header { border-bottom: 1px solid var(--border); background: var(--card); }
-    .wrap { max-width: var(--maxw); margin: auto; padding: 16px; }
-    .title { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; justify-content: space-between; }
-    .title h1 { margin: 0; font-size: 1.6rem; }
-
-    /* Navigation */
-    .topnav { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-    .topnav a {
-      display: inline-block;
-      padding: 12px 16px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: #0f1623;
-      color: var(--text);
-      font-weight: 600;
-      font-size: 1rem;
-    }
-    .topnav a:hover { border-color: var(--accent); }
-    .topnav a.active-tab { background-color: rgba(255, 255, 255, 0.1); border-color: var(--accent); }
-
-    /* Panels */
-    .panel {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      margin-top: 18px;
-    }
-    .panel h2 {
-      margin: 0;
-      padding: 16px 18px;
-      border-bottom: 1px solid var(--border);
-      font-size: 1.3rem;
-      font-weight: 600;
-    }
-
-    /* Toolbar */
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--border);
-    }
-    input[type="search"] {
-      flex: 1;
-      min-width: 220px;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #0f1623;
-      color: var(--text);
-      font-size: 1rem;
-    }
-    .muted { color: var(--muted); }
-    .club-btn {
-      background: #0f1623;
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 8px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1rem;
-    }
-    .club-btn:hover { background: rgba(255, 255, 255, 0.05); }
-
-    /* Table */
-    .table-wrap { overflow: auto; }
-    #players { table-layout: auto; width: auto; margin: 0 auto; font-size: 1.1rem; border-collapse: collapse; }
-    #players th, #players td { text-align: center; padding: 0.5rem 1rem; border-bottom: 1px solid var(--border); }
-    #players th { font-weight: 600; position: sticky; top: 0; background: var(--card); }
-    tr:hover td { background: #0f1520; }
-    .right { text-align: right; }
-    @media (max-width: 600px) {
-      #players { font-size: 1rem; }
-      #players th:first-child, #players td:first-child { min-width: 140px; }
-    }
-
+    #compare-chart { height: 800px; }
+    .toolbar { margin-bottom: 10px; }
     /* Modal */
     #compare-modal {
       display:none;
@@ -124,6 +29,12 @@
       max-height:80%;
       overflow:auto;
       color:#fff;
+    }
+    .compare-controls {
+      margin: 10px 0;
+    }
+    .compare-controls button {
+      margin-right:10px;
     }
   </style>
 </head>
@@ -148,7 +59,7 @@
       <button id="compare-btn" class="club-btn" type="button" style="margin-left:auto">Compare</button>
     </div>
     <div id="compare-wrap" style="display:none; padding:16px">
-      <div id="compare-chart" style="height:800px"></div>
+      <div id="compare-chart"></div>
     </div>
     <div class="table-wrap">
       <table id="players">
@@ -168,9 +79,15 @@
   <div id="compare-modal">
     <div>
       <h3>Select players to view:</h3>
-      <div id="compare-list" style="margin-bottom:20px;"></div>
-      <button id="compare-show" style="margin-right:10px">Show Selected</button>
-      <button id="compare-cancel">Cancel</button>
+      <div class="compare-controls">
+        <button id="compare-show-top">Show Selected</button>
+        <button id="compare-cancel-top">Cancel</button>
+      </div>
+      <div id="compare-list" style="margin:10px 0 20px 0;"></div>
+      <div class="compare-controls">
+        <button id="compare-show-bottom">Show Selected</button>
+        <button id="compare-cancel-bottom">Cancel</button>
+      </div>
     </div>
   </div>
 </main>
@@ -179,13 +96,13 @@
   const DATA_URL = 'data/players.json';
   const state = { rows: [], filtered: [] };
   const histCache = new Map();
+  const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
 
   function render() {
     const tbody = document.querySelector('#players tbody');
     tbody.innerHTML = '';
     state.filtered.forEach((r, i) => {
       const tr = document.createElement('tr');
-
       const tdRank = document.createElement('td');
       tdRank.textContent = i + 1;
       tr.appendChild(tdRank);
@@ -240,20 +157,44 @@
     chart.innerHTML = 'Loading…';
 
     const traces = [];
+    let ymin = Infinity, ymax = -Infinity;
+
     for (const p of players) {
       const hist = await fetchHistoryFor(p.id);
       if (!hist || !hist.length) continue;
+
+      const xs = hist.map(d => d.date);
+      const ys = hist.map(d => Number(d.rating));
+      ymin = Math.min(ymin, ...ys);
+      ymax = Math.max(ymax, ...ys);
+
       traces.push({
+        type: 'scatter',
         name: p.name,
-        x: hist.map(d => d.date),
-        y: hist.map(d => d.rating),
-        mode: 'lines'
+        x: xs,
+        y: ys,
+        mode: 'lines',
+        line: { width: 2, shape: 'linear' },
+        hovertemplate: '%{x}<br>%{y:.0f}<extra>' + p.name + '</extra>',
+        connectgaps: true
       });
     }
 
     if (!traces.length) {
       chart.innerHTML = 'No history found.';
       return;
+    }
+
+    ymin = Math.floor(ymin / 100) * 100;
+    ymax = Math.ceil(ymax / 100) * 100;
+    const shapes = [];
+    for (let v = ymin; v <= ymax; v += 100) {
+      shapes.push({
+        type: 'line', xref: 'paper', x0: 0, x1: 1,
+        y0: v, y1: v,
+        line: { width: 1, color: 'rgba(128,128,128,0.35)' },
+        layer: 'below'
+      });
     }
 
     const cs = getComputedStyle(document.body);
@@ -264,19 +205,22 @@
       legend: { orientation: 'h' },
       paper_bgcolor: cs.backgroundColor,
       plot_bgcolor: cs.backgroundColor,
-      font: { color: cs.color }
+      font: { color: cs.color },
+      shapes
     };
 
-    Plotly.newPlot(chart, traces, layout, { displayModeBar: false, responsive: true });
+    Plotly.newPlot(chart, traces, layout, {
+      staticPlot: IS_TOUCH,
+      displayModeBar: false,
+      responsive: true
+    });
   }
 
   function setupCompareButton() {
     const modal = document.getElementById('compare-modal');
     const listDiv = document.getElementById('compare-list');
-    const showBtn = document.getElementById('compare-show');
-    const cancelBtn = document.getElementById('compare-cancel');
 
-    document.getElementById('compare-btn').addEventListener('click', () => {
+    function openModal() {
       listDiv.innerHTML = '';
       state.filtered.forEach(p => {
         const id = `chk-${p.id}`;
@@ -290,20 +234,30 @@
         listDiv.appendChild(wrapper);
       });
       modal.style.display = 'flex';
-    });
+    }
 
-    cancelBtn.addEventListener('click', () => modal.style.display = 'none');
+    function closeModal() {
+      modal.style.display = 'none';
+    }
 
-    showBtn.addEventListener('click', () => {
+    function showSelected() {
       const selectedIds = Array.from(listDiv.querySelectorAll('input:checked')).map(cb => cb.value);
       if (!selectedIds.length) {
         alert('Please select at least one player.');
         return;
       }
-      modal.style.display = 'none';
+      closeModal();
       const chosen = state.filtered.filter(p => selectedIds.includes(p.id));
       buildComparison(chosen);
-    });
+    }
+
+    document.getElementById('compare-btn').addEventListener('click', openModal);
+
+    document.getElementById('compare-show-top').addEventListener('click', showSelected);
+    document.getElementById('compare-show-bottom').addEventListener('click', showSelected);
+
+    document.getElementById('compare-cancel-top').addEventListener('click', closeModal);
+    document.getElementById('compare-cancel-bottom').addEventListener('click', closeModal);
   }
 
   async function load() {
@@ -314,7 +268,7 @@
       state.rows = data
         .filter(d => d && d.name && Number.isFinite(+d.rating))
         .map(d => ({ id: d.id, name: d.name, rating: +d.rating }))
-        .sort((a,b) => b.rating - a.rating);
+        .sort((a, b) => b.rating - a.rating);
       state.filtered = state.rows.slice();
       render();
     } catch (err) {
