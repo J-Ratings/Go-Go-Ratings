@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>GoGo Ratings</title>
+  <title>Go Go Ratings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
@@ -25,7 +25,7 @@
       <label for="agg">View:</label>
       <select id="agg">
         <option value="daily">Daily</option>
-        <option value="monthly">Monthly</option>
+        <option value="monthly" selected>Monthly</option>
         <option value="yearly">Yearly</option>
       </select>
     </div>
@@ -45,50 +45,30 @@
   const HIST_URL = id => `data/history/${encodeURIComponent(id)}.json`;
   const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
 
-  function aggregate(series, mode) {
-    if (mode === 'daily') return series;
+  let RAW = []; // keep raw daily series globally
 
-    const grouped = {};
+  function aggregate(series, mode) {
+    if (mode === 'daily') return series.slice(); // exact as-is
+    const buckets = {};
     for (const p of series) {
       const d = new Date(p.x);
-      let key;
-      if (mode === 'monthly') {
-        key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      } else if (mode === 'yearly') {
-        key = String(d.getFullYear());
-      }
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(p.y);
+      const key = (mode === 'monthly')
+        ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+        : `${d.getFullYear()}`;
+      (buckets[key] ||= []).push(p.y);
     }
-
-    const out = [];
-    for (const key of Object.keys(grouped).sort()) {
-      const avg = grouped[key].reduce((a,b) => a+b, 0) / grouped[key].length;
-      if (mode === 'monthly') {
-        out.push({ x: key + '-01', y: avg });
-      } else {
-        out.push({ x: key + '-01-01', y: avg });
-      }
-    }
+    const out = Object.keys(buckets).sort().map(k => {
+      const ys = buckets[k];
+      const avg = ys.reduce((a,b)=>a+b,0) / ys.length;
+      const x = (k.length === 7) ? `${k}-01` : `${k}-01-01`; // month start / year start
+      return { x, y: avg };
+    });
     return out;
   }
 
-  function render(series, mode) {
-    const trace = {
-      x: series.map(p => p.x),
-      y: series.map(p => p.y),
-      mode: mode === 'daily' ? 'lines' : 'lines+markers',
-      line: { 
-        width: 2, 
-        shape: mode === 'daily' ? 'hv' : 'linear',
-        color: '#1f77b4' 
-      },
-      marker: mode === 'daily' ? undefined : { size: 4 },
-      hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>'
-    };
-
-    const ymin = Math.floor(Math.min(...trace.y) / 100) * 100;
-    const ymax = Math.ceil(Math.max(...trace.y) / 100) * 100;
+  function majorGrid(yvals){
+    const ymin = Math.floor(Math.min(...yvals) / 100) * 100;
+    const ymax = Math.ceil(Math.max(...yvals) / 100) * 100;
     const shapes = [];
     for (let v = ymin; v <= ymax; v += 100) {
       shapes.push({
@@ -99,9 +79,34 @@
         layer: 'below'
       });
     }
+    return { ymin, ymax, shapes };
+  }
+
+  function render(series, mode){
+    // remove the placeholder text if still there
+    const chartEl = document.getElementById('chart');
+    if (chartEl.textContent && chartEl.textContent.includes('Loading')) chartEl.textContent = '';
+
+    const yvals = series.map(p => p.y);
+    const { shapes } = majorGrid(yvals);
+
+    const trace = {
+      x: series.map(p => p.x),
+      y: series.map(p => p.y),
+      mode: (mode === 'daily') ? 'lines' : 'lines+markers',
+      line: {
+        width: 2,
+        shape: (mode === 'daily') ? 'hv' : 'linear', // step for daily, normal otherwise
+        color: '#1f77b4',
+        simplify: false
+      },
+      marker: (mode === 'daily') ? undefined : { size: 4 },
+      connectgaps: true,
+      hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>'
+    };
 
     const bg = getComputedStyle(document.body).backgroundColor;
-    Plotly.newPlot('chart', [trace], {
+    Plotly.react('chart', [trace], {
       margin:{ l:50, r:20, t:10, b:40 },
       xaxis:{ type:'date' },
       yaxis:{ title:'Rating' },
@@ -130,22 +135,24 @@
       if (!me) throw new Error('player id not in players.json');
       document.getElementById('pname').textContent = me.name;
 
-      const rawSeries = (await histRes.json())
+      RAW = (await histRes.json())
         .map(d => ({ x: d.date, y: Number(d.rating) }))
         .filter(p => Number.isFinite(p.y));
-      if (!rawSeries.length) {
+
+      if (!RAW.length) {
         document.getElementById('chart').textContent = 'No games';
         return;
       }
 
-      // default mode = monthly
+      // default = Monthly
       const initialMode = 'monthly';
       document.getElementById('agg').value = initialMode;
-      render(aggregate(rawSeries, initialMode), initialMode);
+      render(aggregate(RAW, initialMode), initialMode);
 
+      // toggle
       document.getElementById('agg').addEventListener('change', e => {
         const mode = e.target.value;
-        render(aggregate(rawSeries, mode), mode);
+        render(aggregate(RAW, mode), mode);
       });
 
     } catch (e) {
