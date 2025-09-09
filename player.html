@@ -10,7 +10,6 @@
     #chart { height: 420px; }
     .toolbar { margin-bottom: 10px; text-align: center; }
     .toolbar label { margin-right: 6px; }
-    /* Centre titles */
     h2#pname, h3.section-title { text-align: center; }
 
     /* Games table */
@@ -24,7 +23,7 @@
     table.games th, table.games td {
       padding:6px 8px;
       border-bottom:1px solid #2b2f36;
-      text-align:center;           /* centre all cells and headers */
+      text-align:center;
       vertical-align: middle;
       white-space: nowrap;
     }
@@ -35,16 +34,21 @@
       z-index: 2;
       background-color: var(--panel-bg, #1a1a1a);
     }
-    /* Double separators: Date|Black, Elo|White, Elo|Result */
+    /* Double separators: Date|Black, Elo|White, Elo|Result|Δ  */
     table.games th:nth-child(1), table.games td:nth-child(1),
     table.games th:nth-child(3), table.games td:nth-child(3),
-    table.games th:nth-child(5), table.games td:nth-child(5) {
+    table.games th:nth-child(5), table.games td:nth-child(5),
+    table.games th:nth-child(6), table.games td:nth-child(6) {
       border-right: 3px double rgba(128,128,128,0.6);
     }
 
     .result { font-weight:700; }
     .result.win  { color:#2e7d32; }
     .result.loss { color:#c62828; }
+
+    .delta { font-weight:700; }
+    .delta.pos { color:#2e7d32; }
+    .delta.neg { color:#c62828; }
   </style>
 </head>
 <body>
@@ -197,7 +201,7 @@
     // Header
     const thead = document.createElement('thead');
     const hr = document.createElement('tr');
-    for (const h of ['Date','Black','Elo','White','Elo','Result']) {
+    for (const h of ['Date','Black','Elo','White','Elo','Result','Δ']) {
       const th = document.createElement('th');
       th.textContent = h;
       hr.appendChild(th);
@@ -205,7 +209,7 @@
     thead.appendChild(hr);
     tbl.appendChild(thead);
 
-    // Make header background opaque
+    // Opaque header (in case theme var isn't defined)
     const panelBg = getComputedStyle(document.querySelector('.panel')).backgroundColor;
     thead.style.backgroundColor = panelBg;
 
@@ -249,12 +253,23 @@
                    (g.result === '0-1' && g.white === myName);
       tdR.className = 'result ' + (iWon ? 'win' : 'loss');
 
+      // Δ (rating change for this profile)
+      const tdDelta = document.createElement('td');
+      const numDelta = Number(g.delta);
+      if (!Number.isNaN(numDelta)) {
+        tdDelta.textContent = g.delta; // already formatted with +/-
+        tdDelta.className = 'delta ' + (numDelta > 0 ? 'pos' : (numDelta < 0 ? 'neg' : ''));
+      } else {
+        tdDelta.textContent = '';
+      }
+
       tr.appendChild(tdDate);
       tr.appendChild(tdB);
       tr.appendChild(tdBE);
       tr.appendChild(tdW);
       tr.appendChild(tdWE);
       tr.appendChild(tdR);
+      tr.appendChild(tdDelta);
       tbody.appendChild(tr);
     }
 
