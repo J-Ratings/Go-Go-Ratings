@@ -1,3 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GoGo Ratings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    #chart { height: 420px; }
+    .toolbar { margin-bottom: 10px; text-align: center; }
+    .toolbar label { margin-right: 6px; }
+    /* Centre titles */
+    h2#pname, h3.section-title { text-align: center; }
+
+    /* Games table */
+    #gamesWrap { max-height: 520px; overflow: auto; margin-top: 12px; }
+    table.games {
+      width:100%;
+      border-collapse: separate;   /* needed for double borders */
+      border-spacing: 0;
+      font-size:14px;
+    }
+    table.games th, table.games td {
+      padding:6px 8px;
+      border-bottom:1px solid #2b2f36;
+      text-align:center;           /* centre all cells and headers */
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    /* Sticky header */
+    table.games th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background-color: var(--panel-bg, #1a1a1a);
+    }
+    /* Double separators: Date|Black, Elo|White, Elo|Result */
+    table.games th:nth-child(1), table.games td:nth-child(1),
+    table.games th:nth-child(3), table.games td:nth-child(3),
+    table.games th:nth-child(5), table.games td:nth-child(5) {
+      border-right: 3px double rgba(128,128,128,0.6);
+    }
+
+    .result { font-weight:700; }
+    .result.win  { color:#2e7d32; }
+    .result.loss { color:#c62828; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1 class="site-title"><a href="index.html">GoGo Ratings</a></h1>
+    <nav class="topnav" aria-label="Main">
+      <a href="index.html">Home</a>
+      <a href="compare.html">Compare</a>
+      <a href="peak.html">Peak</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel">
+    <h2 id="pname">Player</h2>
+    <div class="toolbar">
+      <label for="agg">View:</label>
+      <select id="agg">
+        <option value="daily">Daily</option>
+        <option value="monthly" selected>Monthly</option>
+        <option value="yearly">Yearly</option>
+      </select>
+    </div>
+    <div id="chart">Loading…</div>
+
+    <h3 class="section-title" style="margin-top:18px;">Games</h3>
+    <div id="gamesWrap">
+      <table id="games" class="games"></table>
+    </div>
+  </section>
+</main>
+
 <script>
   const params = new URLSearchParams(location.search);
   const idRaw = params.get('id');
@@ -113,7 +194,7 @@
     const tbl = document.getElementById('games');
     tbl.innerHTML = '';
 
-    // Header (Date first)
+    // Header
     const thead = document.createElement('thead');
     const hr = document.createElement('tr');
     for (const h of ['Date','Black','Elo','White','Elo','Result']) {
@@ -124,7 +205,7 @@
     thead.appendChild(hr);
     tbl.appendChild(thead);
 
-    // Ensure sticky header background matches panel
+    // Make header background opaque
     const panelBg = getComputedStyle(document.querySelector('.panel')).backgroundColor;
     thead.style.backgroundColor = panelBg;
 
@@ -226,3 +307,5 @@
 
   load();
 </script>
+</body>
+</html>
