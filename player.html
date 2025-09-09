@@ -8,6 +8,7 @@
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     #chart { height: 420px; }
+    .toolbar { margin-bottom: 1em; }
   </style>
 </head>
 <body>
@@ -20,6 +21,14 @@
 <main class="wrap">
   <section class="panel">
     <h2 id="pname">Player</h2>
+    <div class="toolbar">
+      <label for="agg">View:</label>
+      <select id="agg">
+        <option value="daily">Daily</option>
+        <option value="monthly" selected>Monthly</option>
+        <option value="yearly">Yearly</option>
+      </select>
+    </div>
     <div id="chart">Loading…</div>
   </section>
 </main>
@@ -35,6 +44,77 @@
   const PLAYERS_URL = 'data/players.json';
   const HIST_URL = id => `data/history/${encodeURIComponent(id)}.json`;
   const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+  let rawSeries = [];
+
+  function aggregate(series, mode) {
+    if (mode === 'daily') return series;
+
+    const grouped = {};
+    for (const p of series) {
+      const d = new Date(p.x);
+      let key;
+      if (mode === 'monthly') {
+        key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      } else if (mode === 'yearly') {
+        key = `${d.getFullYear()}`;
+      }
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(p.y);
+    }
+
+    const aggSeries = Object.entries(grouped).map(([k, vals]) => {
+      const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
+      let date;
+      if (mode === 'monthly') {
+        const [y,m] = k.split('-');
+        date = `${y}-${m}-15`; // mid-month
+      } else {
+        date = `${k}-07-01`; // mid-year
+      }
+      return { x: date, y: avg };
+    });
+
+    return aggSeries.sort((a,b)=> new Date(a.x) - new Date(b.x));
+  }
+
+  function render(series) {
+    const trace = {
+      x: series.map(p => p.x),
+      y: series.map(p => p.y),
+      mode: 'lines+markers',
+      line: { width: 2, shape: 'hv', color: '#1f77b4' },
+      marker: { size: 4 },
+      hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>'
+    };
+
+    const ymin = Math.floor(Math.min(...trace.y) / 100) * 100;
+    const ymax = Math.ceil(Math.max(...trace.y) / 100) * 100;
+    const shapes = [];
+    for (let v = ymin; v <= ymax; v += 100) {
+      shapes.push({
+        type: 'line',
+        xref: 'paper', x0: 0, x1: 1,
+        y0: v, y1: v,
+        line: { width: 1, color: 'rgba(128,128,128,0.35)' },
+        layer: 'below'
+      });
+    }
+
+    const bg = getComputedStyle(document.body).backgroundColor;
+    Plotly.newPlot('chart', [trace], {
+      margin:{ l:50, r:20, t:10, b:40 },
+      xaxis:{ type:'date' },
+      yaxis:{ title:'Rating' },
+      paper_bgcolor:bg,
+      plot_bgcolor:bg,
+      font:{ color:getComputedStyle(document.body).color },
+      shapes
+    }, {
+      staticPlot: IS_TOUCH,
+      displayModeBar:false,
+      responsive:true
+    });
+  }
 
   async function load() {
     try {
@@ -50,56 +130,29 @@
       if (!me) throw new Error('player id not in players.json');
       document.getElementById('pname').textContent = me.name;
 
-      const series = (await histRes.json())
+      rawSeries = (await histRes.json())
         .map(d => ({ x: d.date, y: Number(d.rating) }))
         .filter(p => Number.isFinite(p.y));
-      if (!series.length) {
+
+      if (!rawSeries.length) {
         document.getElementById('chart').textContent = 'No games';
         return;
       }
 
-      const trace = {
-        x: series.map(p => p.x),
-        y: series.map(p => p.y),
-        mode: 'lines',
-        line: { width: 2, shape: 'hv', color: '#1f77b4' },
-        name: 'Go-Rating',
-        hovertemplate: '%{x}<br>%{y}<extra></extra>'
-      };
-
-      const ymin = Math.floor(Math.min(...trace.y) / 100) * 100;
-      const ymax = Math.ceil(Math.max(...trace.y) / 100) * 100;
-      const shapes = [];
-      for (let v = ymin; v <= ymax; v += 100) {
-        shapes.push({
-          type: 'line',
-          xref: 'paper', x0: 0, x1: 1,
-          y0: v, y1: v,
-          line: { width: 1, color: 'rgba(128,128,128,0.35)' },
-          layer: 'below'
-        });
-      }
-
-      const bg = getComputedStyle(document.body).backgroundColor;
-      Plotly.newPlot('chart', [trace], {
-        margin:{ l:50, r:20, t:10, b:40 },
-        xaxis:{ type:'date' },
-        yaxis:{ title:'Rating' },
-        paper_bgcolor:bg,
-        plot_bgcolor:bg,
-        font:{ color:getComputedStyle(document.body).color },
-        shapes
-      }, {
-        staticPlot: IS_TOUCH,
-        displayModeBar:false,
-        responsive:true
-      });
+      // Default to monthly
+      const initialMode = 'monthly';
+      render(aggregate(rawSeries, initialMode));
+      document.getElementById('agg').value = initialMode;
 
     } catch (e) {
       console.error(e);
       document.getElementById('chart').textContent = 'Error: ' + e.message;
     }
   }
+
+  document.getElementById('agg').addEventListener('change', e => {
+    render(aggregate(rawSeries, e.target.value));
+  });
 
   load();
 </script>
