@@ -5,7 +5,7 @@
   <title>Go Go Ratings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <style>
     #chart { height: 420px; }
     .toolbar { margin-bottom: 10px; }
@@ -47,7 +47,6 @@
 
   let RAW = []; // daily series
 
-  // Sort by date, keep finite y only, and (optionally) dedupe same-day points.
   function normalise(series, dedupeByDay = false){
     const s = series
       .filter(p => p && p.x && Number.isFinite(p.y))
@@ -62,7 +61,7 @@
       const d = new Date(p.x);
       const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       if (key !== lastKey) out.push(p);
-      else out[out.length-1] = p; // keep the last point for that day
+      else out[out.length-1] = p; // keep last point that day
       lastKey = key;
     }
     return out;
@@ -106,8 +105,7 @@
     const shapes = [];
     for (let v = ymin; v <= ymax; v += 100) {
       shapes.push({
-        type: 'line',
-        xref: 'paper', x0: 0, x1: 1,
+        type: 'line', xref: 'paper', x0: 0, x1: 1,
         y0: v, y1: v,
         line: { width: 1, color: 'rgba(128,128,128,0.35)' },
         layer: 'below'
@@ -118,13 +116,13 @@
       type: 'scatter',
       x: xs,
       y: ys,
-      mode: mode === 'daily' ? 'lines' : 'lines+markers',
+      mode: (mode === 'daily') ? 'lines' : 'lines+markers',
       line: {
         width: 2,
-        shape: mode === 'daily' ? 'hv' : 'linear',
+        shape: (mode === 'daily') ? 'hv' : 'linear',
         color: '#1f77b4'
       },
-      marker: mode === 'daily' ? undefined : { size: 4 },
+      marker: (mode === 'daily') ? { size: 0 } : { size: 4 },
       hovertemplate: '%{x}<br>%{y:.0f}<extra></extra>',
       connectgaps: true
     };
@@ -161,7 +159,7 @@
 
       RAW = normalise(
         (await histRes.json()).map(d => ({ x: d.date, y: Number(d.rating) })),
-        true // dedupe multiple points on the same day, keep last
+        true
       );
 
       if (!RAW.length) {
